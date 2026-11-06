@@ -55,7 +55,7 @@ struct TensorProgram {
     IR::Program program;
     Profile profile;
 
-    explicit TensorProgram(u32 count = 1, u32 software_depth = 0) {
+    explicit TensorProgram(u32 count = 1, u32 software_depth = 0, bool external_inputs = false) {
         program.stage = Stage::Compute;
         program.workgroup_size = {64, 1, 1};
         program.blocks = {&block};
@@ -74,6 +74,13 @@ struct TensorProgram {
         const auto lane = ir.LaneId();
         std::array<IR::U32, 8> inputs;
         for (u32 i = 0; i < inputs.size(); ++i) {
+            if (external_inputs) {
+                const auto offset = ir.IAdd(ir.Imm32(512 + i * 4),
+                    ir.ShiftLeftLogical(ir.LocalInvocationIdX(), ir.Imm32(5)));
+                block.AppendNewInst(IR::Opcode::LoadStorage32, {ir.Imm32(0), offset});
+                inputs[i] = IR::U32{IR::Value{&block.Instructions().back()}};
+                continue;
+            }
             inputs[i] = software_depth ? ir.IAdd(ir.Imm32(0x3c003c00U + i * 0x01000100U),
                 ir.ShiftLeftLogical(lane, ir.Imm32(3))) : ir.IAdd(ir.Imm32((i + 1) * 0x01000100U), lane);
         }
@@ -287,6 +294,16 @@ TEST_CASE("Software matrix helpers also emit for 64-lane host subgroups",
         REQUIRE_FALSE(HasCapability(code, 5357));
         REQUIRE(Instructions(code, 246).size() == 1);
         REQUIRE(Instructions(code, 345).size() == 4); // OpGroupNonUniformShuffle
+    }
+}
+
+TEST_CASE("Software matrix differential fixtures accept runtime fragments",
+          "[video_core][tensor][ampere]") {
+    for (const u32 depth : {8U, 16U}) {
+        TensorProgram fixture{1, depth, true};
+        fixture.profile.max_subgroup_size = 64;
+        const auto code = fixture.Emit(depth == 8 ? "software-k8-inputs" : "software-k16-inputs");
+        REQUIRE(Instructions(code, 57).size() == 1);
     }
 }
 
