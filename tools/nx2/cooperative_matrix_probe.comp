@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Isolated feasibility probe. This shader is not used by the emulator.
+#version 460
+#extension GL_KHR_cooperative_matrix : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_memory_scope_semantics : require
+
+#ifndef GUEST_DEPTH
+#define GUEST_DEPTH 16
+#endif
+
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) buffer Fragments { uint words[]; } data;
+shared float16_t matrix_a[512];
+shared float16_t matrix_b[512];
+shared float matrix_c[512];
+
+float fragment(uint warp, uint lane, uint reg, uint half_index) {
+    return unpackHalf2x16(data.words[128 + (warp * 32 + lane) * 8 + reg])[half_index];
+}
+
+float round_half(float value) {
+    uint bits = floatBitsToUint(value);
+    uint magnitude = bits & 0x7fffffff;
+    uint tie = (magnitude >> 13) & 1;
+    uint rounded = (magnitude + 0xfff + tie) & ~0x1fff;
+    uint normal = rounded >= 0x47800000 ? 0x7f800000 : rounded;
+    precise float scaled = uintBitsToFloat(magnitude) * 16777216.0;
+    precise float tiny = roundEven(scaled) * uintBitsToFloat(0x33800000);
+    uint finite = magnitude >= 0x38800000 ? normal : floatBitsToUint(tiny);
+    uint result = magnitude >= 0x7f800000 ? magnitude : finite;
+    return uintBitsToFloat(result | (bits & 0x80000000));
+}
+
+void main() {
+    uint tid = gl_LocalInvocationIndex;
+    for (uint i = tid; i < 512; i += 64) {
+        uint warp = i / 256, row = (i % 256) / 16, col = i % 16;
+        matrix_c[i] = col < 8 ? fragment(warp, (row % 8) * 4 + col / 2,
+                                        6 + row / 8, col % 2) : 0.0;
+    }
+    barrier();
+    for (uint group = 0; group < GUEST_DEPTH / 8; ++group) {
+        for (uint i = tid; i < 512; i += 64) {
+            uint warp = i / 256, row = (i % 256) / 16, col = i % 16;
+            uint k = group * 8 + col;
+            matrix_a[i] = col < 8 ? float16_t(fragment(warp, (row % 8) * 4 + (k % 8) / 2,
+                                                       row / 8 + 2 * (k / 8), k % 2)) : float16_t(0);
+            k = group * 8 + row;
+            matrix_b[i] = row < 8 && col < 8
+                ? float16_t(fragment(warp, col * 4 + (k % 8) / 2, 4 + k / 8, k % 2))
+                : float16_t(0);
+        }
+        barrier();
+        // A 64-lane host subgroup processes the two independent guest warps separately.
+        for (uint warp = gl_SubgroupID; warp < 2; warp += gl_NumSubgroups) {
+            coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> a;
+            coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB> b;
+            coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> c;
+            coopMatLoad(a, matrix_a, warp * 256, 16, gl_CooperativeMatrixLayoutRowMajor);
+            coopMatLoad(b, matrix_b, warp * 256, 16, gl_CooperativeMatrixLayoutRowMajor);
+            coopMatLoad(c, matrix_c, warp * 256, 16, gl_CooperativeMatrixLayoutRowMajor);
+            c = coopMatMulAdd(a, b, c);
+            for (uint element = 0; element < c.length(); ++element) {
+                c[element] = round_half(c[element]);
+            }
+            coopMatStore(c, matrix_c, warp * 256, 16, gl_CooperativeMatrixLayoutRowMajor);
+        }
+        barrier();
+    }
+    uint warp = tid / 32, lane = tid % 32;
+    uint row = lane / 4, col = (lane % 4) * 2;
+    for (uint part = 0; part < 2; ++part) {
+        uint index = warp * 256 + (row + part * 8) * 16 + col;
+        data.words[tid * 2 + part] = packHalf2x16(vec2(matrix_c[index], matrix_c[index + 1]));
+    }
+}
