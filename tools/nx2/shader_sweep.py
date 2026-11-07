@@ -33,6 +33,7 @@ GAMES = {
     "0400d1d02399a000": "The Duskbloods network test",
     "0400d4201c6ea000": "Mario Tennis Fever",
     "0400e88025b1a000": "Star Fox",
+    "0400486024dec000": "The Legend of Zelda: Ocarina of Time",
 }
 MAP_MAGIC = 0x50414D4E4544454E
 GRAPHICS_KEY_SIZE = 1056
@@ -208,7 +209,14 @@ def main():
                     key_path = records_dir / f"{identity}.key"
                     env_path.write_bytes(env["bytes"])
                     key_path.write_bytes(env["key"])
+                    stage_index = STAGES.index(env["stage"])
+                    shader_hash = None
+                    if env["stage"] == "compute" and len(env["key"]) >= 8:
+                        shader_hash = f"{struct.unpack_from('<Q', env['key'], 0)[0]:016x}"
+                    elif stage_index < 6 and len(env["key"]) >= (stage_index + 1) * 8:
+                        shader_hash = f"{struct.unpack_from('<Q', env['key'], stage_index * 8)[0]:016x}"
                     jobs[identity] = {"id": identity, "game": game, "stage": env["stage"],
+                                      "shader_hash": shader_hash,
                                       "source": str(path), "offset": env["offset"],
                                       "kind": "cache", "env": str(env_path),
                                       "key": str(key_path), "version": env["version"]}
