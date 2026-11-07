@@ -252,7 +252,7 @@ public:
     }
 
     bool IsNativeMode() const { return native_mode; }
-    bool ProcessGameDlss(u64 program_id, u64 native_key);
+    bool ProcessGameDlss(u64 program_id, u64 native_key, u64 shader_hash = 0);
     void TraceDlssContract(u64 native_key, bool warn_unvalidated = true);
 
     /// GPU thread split with macros on its front half (gpu_split.h, EDEN_NX2_SPLIT=2), called by
@@ -290,9 +290,11 @@ private:
     /// This frame's DLSS evaluation (Fortune's Weave): whether its passes all ran, and whether
     /// the game's own network output is shown instead of the replacement upscale.
     struct DlssChain {
+        u64 program_id{};
         bool active{};
         bool spatial_only{};
         bool output_pass{};
+        bool replaced{};
         u32 rejected{};
         u32 clean_evaluations{};
         bool native{};
@@ -318,6 +320,7 @@ private:
     /// Motion vectors and depth of Fire Emblem: Fortune's Weave's DLSS evaluation, from its first
     /// pass (run earlier in the frame than the network pass the stand-in replaces), with the input
     /// colour image and camera jitter they go with.
+    std::optional<Texture::TICEntry> dlss_prepass_color;
     std::optional<Texture::TICEntry> dlss_motion_vectors;
     std::optional<Texture::TICEntry> dlss_depth;
     u32 dlss_contract_trace_count{};

@@ -1,0 +1,99 @@
+[
+  {
+    "name": "OOT eff3ccbe1438679d (120x1x1, 6.9ms/2x)",
+    "baseline": "${BEFORE}/cache-eff3ccbe1438679d.spv",
+    "candidate": "${AFTER}/cache-eff3ccbe1438679d.spv",
+    "subgroup": [32],
+    "dispatch": [120, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  },
+  {
+    "name": "OOT e440c9f7923c2973 (60x1x1, 3.9ms/2x)",
+    "baseline": "${BEFORE}/cache-e440c9f7923c2973.spv",
+    "candidate": "${AFTER}/cache-e440c9f7923c2973.spv",
+    "subgroup": [32],
+    "dispatch": [60, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  },
+  {
+    "name": "OOT b20813e55359188f (720x1x1, 1.8ms/2x)",
+    "baseline": "${BEFORE}/cache-b20813e55359188f.spv",
+    "candidate": "${AFTER}/cache-b20813e55359188f.spv",
+    "subgroup": [32],
+    "dispatch": [720, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  },
+  {
+    "name": "OOT 8c29514395041853 (70x1x1, 0.5ms/1x)",
+    "baseline": "${BEFORE}/cache-8c29514395041853.spv",
+    "candidate": "${AFTER}/cache-8c29514395041853.spv",
+    "subgroup": [32],
+    "dispatch": [70, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  },
+  {
+    "name": "OOT 75e8747a521d0939 (680x1x1, 0.14ms/1x)",
+    "baseline": "${BEFORE}/cache-75e8747a521d0939.spv",
+    "candidate": "${AFTER}/cache-75e8747a521d0939.spv",
+    "subgroup": [32],
+    "dispatch": [680, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  },
+  {
+    "name": "OOT 06232b1321cffcd5 (135x1x1, 0.08ms/1x)",
+    "baseline": "${BEFORE}/cache-06232b1321cffcd5.spv",
+    "candidate": "${AFTER}/cache-06232b1321cffcd5.spv",
+    "subgroup": [32],
+    "dispatch": [135, 1, 1],
+    "cases": 4,
+    "buffers": [
+      {"set": 0, "binding": 0, "size": 65536, "fill": "zero", "compare": "none"},
+      {"set": 0, "binding": 1, "size": 1048576, "fill": "zero", "compare": "bitwise"},
+      {"set": 0, "binding": 2, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 3, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 4, "size": 1048576, "fill": "random-half", "compare": "none"},
+      {"set": 0, "binding": 5, "size": 1048576, "fill": "random-half", "compare": "none"}
+    ],
+    "timing": {"repeats": 20, "samples": 6}
+  }
+]

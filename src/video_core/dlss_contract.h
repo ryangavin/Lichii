@@ -14,7 +14,9 @@ constexpr bool ValidColorFormats(VideoCore::Surface::PixelFormat input,
     using VideoCore::Surface::PixelFormat;
     return (input == PixelFormat::B10G11R11_FLOAT && output == input) ||
            (!use_history && input == PixelFormat::A8B8G8R8_SRGB &&
-            output == PixelFormat::R16G16B16A16_FLOAT);
+            output == PixelFormat::R16G16B16A16_FLOAT) ||
+           (!use_history && input == PixelFormat::A8B8G8R8_UNORM &&
+            output == PixelFormat::A8B8G8R8_UNORM);
 }
 
 constexpr std::uint64_t FastFusionProgramId = 0x040041E0212AE000ULL;

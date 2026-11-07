@@ -246,3 +246,32 @@ TEST_CASE("Star Fox logged native-resolution cutscene colour pair is accepted", 
     alias.address_high.Assign(input.address_high);
     REQUIRE_FALSE(FE::ValidPair(input, alias, true));
 }
+
+TEST_CASE("Ocarina of Time spatial replacement validates captured passes and UNORM pair", "[fe_upscale]") {
+    const auto oot = FE::CapturedPasses(FE::OotProgramId);
+    REQUIRE(oot);
+    REQUIRE(oot->prepass == FE::OotPrepassShaderHash);
+    REQUIRE(oot->output == FE::OotOutputShaderHash);
+    REQUIRE(oot->spatial_only);
+    REQUIRE(oot->prepass_color_offset == FE::OotPrepassColorOffset);
+    REQUIRE(oot->jitter_offset == 0U);
+    REQUIRE(oot->output_color_input_offset == 0U);
+    REQUIRE(oot->output_color_offset == FE::OotOutputColorOffset);
+    REQUIRE(FE::UseReplacement(FE::OotProgramId, FE::OotOutputShaderHash, nullptr));
+    REQUIRE_FALSE(FE::UseReplacement(FE::OotProgramId, FE::OotOutputShaderHash, "native"));
+
+    const auto input = std::bit_cast<TICEntry>(std::array<u32, 8>{
+        0x58d24908, 0x71090000, 0x00600021, 0x00070030,
+        0xe880077f, 0x80000437, 0x03000000, 0x00000000});
+    const auto output = std::bit_cast<TICEntry>(std::array<u32, 8>{
+        0x58d24908, 0x6ba50000, 0x00600021, 0x00070030,
+        0xe88009ff, 0x8000059f, 0x03000000, 0x00000000});
+    REQUIRE(input.Width() == 1920);
+    REQUIRE(input.Height() == 1080);
+    REQUIRE(output.Width() == 2560);
+    REQUIRE(output.Height() == 1440);
+    REQUIRE(FE::ValidOotInput(input));
+    REQUIRE(FE::ValidOotPair(input, output));
+    REQUIRE_FALSE(FE::ValidOotPair(output, input));
+    REQUIRE_FALSE(FE::ValidOotPair(input, input));
+}

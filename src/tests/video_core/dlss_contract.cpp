@@ -15,6 +15,10 @@ TEST_CASE("Spatial cutscene replacement decodes sRGB into float without temporal
                                   PixelFormat::R16G16B16A16_FLOAT, false));
     REQUIRE_FALSE(DC::ValidColorFormats(PixelFormat::A8B8G8R8_SRGB,
                                         PixelFormat::R16G16B16A16_FLOAT, true));
+    REQUIRE(DC::ValidColorFormats(PixelFormat::A8B8G8R8_UNORM,
+                                  PixelFormat::A8B8G8R8_UNORM, false));
+    REQUIRE_FALSE(DC::ValidColorFormats(PixelFormat::A8B8G8R8_UNORM,
+                                        PixelFormat::A8B8G8R8_UNORM, true));
     for (const bool history : {false, true}) {
         REQUIRE(DC::ValidColorFormats(PixelFormat::B10G11R11_FLOAT,
                                       PixelFormat::B10G11R11_FLOAT, history));

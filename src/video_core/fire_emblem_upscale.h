@@ -19,15 +19,24 @@ constexpr u64 PrepassProgramKey = 0x4cbf6eff32525aecULL;
 constexpr u64 StarFoxProgramId = 0x0400E88025B1A000ULL;
 constexpr u64 StarFoxPrepassProgramKey = 0xd686ca0b9fad9e6dULL;
 constexpr u64 StarFoxOutputProgramKey = 0x7d3764ff101bec27ULL;
+constexpr u64 OotProgramId = 0x0400486024DEC000ULL;
+constexpr u64 OotPrepassShaderHash = 0x94d8164fdb39f63cULL;
+constexpr u64 OotOutputShaderHash = 0x4c1ae2fe58f30a97ULL;
 constexpr u32 PrepassColorOffset = 0x278;
 constexpr u32 JitterOffset = 0x1b0;
 constexpr u32 OutputColorInputOffset = 0x328;
 constexpr u32 OutputColorOffset = 0x348;
+constexpr u32 OotPrepassColorOffset = 0x58;
+constexpr u32 OotOutputColorOffset = 0xc8;
 
 struct Passes {
     u64 prepass;
     u64 output;
     bool spatial_only;
+    u32 prepass_color_offset = PrepassColorOffset;
+    u32 jitter_offset = JitterOffset;
+    u32 output_color_input_offset = OutputColorInputOffset;
+    u32 output_color_offset = OutputColorOffset;
 };
 
 constexpr std::optional<Passes> CapturedPasses(u64 program_id) {
@@ -36,6 +45,10 @@ constexpr std::optional<Passes> CapturedPasses(u64 program_id) {
     }
     if (program_id == StarFoxProgramId) {
         return Passes{StarFoxPrepassProgramKey, StarFoxOutputProgramKey, true};
+    }
+    if (program_id == OotProgramId) {
+        return Passes{OotPrepassShaderHash, OotOutputShaderHash, true, OotPrepassColorOffset, 0, 0,
+                      OotOutputColorOffset};
     }
     return std::nullopt;
 }
@@ -114,6 +127,20 @@ inline bool ValidPair(const Tegra::Texture::TICEntry& input,
     }
     return PlainImage(input) && PlainImage(output) &&
            input.format == TextureFormat::B10G11R11 && output.format == TextureFormat::B10G11R11 &&
+           input.Address() != output.Address() && output.Width() > input.Width() &&
+           output.Height() > input.Height();
+}
+
+inline bool ValidOotInput(const Tegra::Texture::TICEntry& input) {
+    using namespace Tegra::Texture;
+    return PlainImage(input) && input.format == TextureFormat::A8B8G8R8 &&
+           input.r_type == ComponentType::UNORM && input.g_type == ComponentType::UNORM &&
+           input.b_type == ComponentType::UNORM && input.a_type == ComponentType::UNORM;
+}
+
+inline bool ValidOotPair(const Tegra::Texture::TICEntry& input,
+                         const Tegra::Texture::TICEntry& output) {
+    return ValidOotInput(input) && ValidOotInput(output) &&
            input.Address() != output.Address() && output.Width() > input.Width() &&
            output.Height() > input.Height();
 }
