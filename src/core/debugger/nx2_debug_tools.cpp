@@ -672,6 +672,40 @@ json InputSequence(ToolState& state, const json& params, const ClientGone& clien
     return RunInput(state, steps, params, client_gone);
 }
 
+json ProfileSnapshot(ToolState&, const json& params) {
+    const u64 after = params.value("after", u64{0});
+    const size_t limit = Param<size_t>(params, "limit", 50, 1, 1000);
+    const std::vector<Common::Log::RingLine> lines = Common::Log::ReadRing(after);
+    json gpu_profile = json::array();
+    json dkb_renderer = json::array();
+    json dkb_gpu_frame = json::array();
+    json dkb_gpu_work = json::array();
+    for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
+        const std::string& text = it->text;
+        if (gpu_profile.size() < limit && text.find("GPU profile:") != std::string::npos) {
+            gpu_profile.push_back(text);
+        } else if (dkb_renderer.size() < limit && text.find("DKB renderer") != std::string::npos) {
+            dkb_renderer.push_back(text);
+        } else if (dkb_gpu_frame.size() < limit && text.find("DKB gpu_frame") != std::string::npos) {
+            dkb_gpu_frame.push_back(text);
+        } else if (dkb_gpu_work.size() < limit && text.find("DKB gpu_work") != std::string::npos) {
+            dkb_gpu_work.push_back(text);
+        }
+    }
+    std::ranges::reverse(gpu_profile);
+    std::ranges::reverse(dkb_renderer);
+    std::ranges::reverse(dkb_gpu_frame);
+    std::ranges::reverse(dkb_gpu_work);
+    const u64 next = lines.empty() ? after : lines.back().sequence;
+    return {
+        {"gpu_profile", std::move(gpu_profile)},
+        {"dkb_renderer", std::move(dkb_renderer)},
+        {"dkb_gpu_frame", std::move(dkb_gpu_frame)},
+        {"dkb_gpu_work", std::move(dkb_gpu_work)},
+        {"next", next},
+    };
+}
+
 Handlers MakeHandlers(const std::shared_ptr<ToolState>& state) {
     const auto handler = [&state](json (*tool)(ToolState&, const json&)) -> Handler {
         return [state, tool](const json& params, const ClientGone&) { return tool(*state, params); };
@@ -687,6 +721,7 @@ Handlers MakeHandlers(const std::shared_ptr<ToolState>& state) {
         {"screenshot", handler(Screenshot)},
         {"log_tail", handler(LogTail)},
         {"log_filter", handler(LogFilter)},
+        {"profile_snapshot", handler(ProfileSnapshot)},
         {"capture_frame", handler(CaptureFrame)},
         {"reject_shaders", handler(RejectShaders)},
         {"sample", handler(SampleThreads)},
