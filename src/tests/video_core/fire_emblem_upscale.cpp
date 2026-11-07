@@ -7,6 +7,7 @@
 #include "shader_recompiler/exception.h"
 #include "shader_recompiler/frontend/ampere/instruction.h"
 #include "video_core/fire_emblem_upscale.h"
+#include "video_core/texture_cache/image_info.h"
 
 namespace {
 using namespace Tegra::Texture;
@@ -66,6 +67,20 @@ TEST_CASE("FE upscale substitute validates both surface descriptors", "[fe_upsca
         rejected([](auto& image) { image.layer_base_0_2.Assign(1); });
         rejected([](auto& image) { image.address_low = 0; });
     }
+}
+
+TEST_CASE("Replacement descriptors are validated as the texture cache reads them", "[fe_upscale]") {
+    // A native descriptor can carry legacy layer-base bits that are not an array prefix for this
+    // ABI. The texture cache strips them before building the view, so the replacement validates
+    // the same normalized descriptor instead of rejecting the pair as a layered image.
+    const auto input = Image(0x100000, 1280, 720);
+    auto output = Image(0x800000, 2560, 1440);
+    output.layer_base_3_7.Assign(4);
+    REQUIRE(output.BaseLayer() == 32);
+    REQUIRE_FALSE(FE::ValidPair(input, output));
+    REQUIRE(FE::ValidPair(input, VideoCommon::TextureViewHeader(output, true)));
+    REQUIRE_FALSE(FE::ValidPair(input, VideoCommon::TextureViewHeader(output, false)));
+    REQUIRE(VideoCommon::TextureViewHeader(output, true).Address() == output.Address());
 }
 
 TEST_CASE("FE substitute completion is not a cached shader rejection", "[fe_upscale]") {
