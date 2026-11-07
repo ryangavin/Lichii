@@ -1,0 +1,318 @@
+[
+ {
+  "name": "global memory u32 x1 buffers",
+  "baseline": "${BEFORE}/global-u32-1.spv",
+  "candidate": "${AFTER}/global-u32-1.spv",
+  "dispatch": [
+   32,
+   1,
+   1
+  ],
+  "subgroup": [
+   32,
+   64
+  ],
+  "cases": 16,
+  "buffers": [
+   {
+    "set": 0,
+    "binding": 0,
+    "size": 65536,
+    "words": {
+     "272": [
+      "0x00000000",
+      "0x00000100",
+      65536,
+      0
+     ]
+    }
+   },
+   {
+    "set": 0,
+    "binding": 1,
+    "size": 65536,
+    "fill": "random"
+   }
+  ],
+  "timing": {
+   "repeats": 200,
+   "samples": 10
+  }
+ },
+ {
+  "name": "global memory u32 x4 buffers",
+  "baseline": "${BEFORE}/global-u32-4.spv",
+  "candidate": "${AFTER}/global-u32-4.spv",
+  "dispatch": [
+   128,
+   1,
+   1
+  ],
+  "subgroup": [
+   32,
+   64
+  ],
+  "cases": 16,
+  "buffers": [
+   {
+    "set": 0,
+    "binding": 0,
+    "size": 65536,
+    "words": {
+     "272": [
+      "0x00000000",
+      "0x00000100",
+      65536,
+      0
+     ],
+     "288": [
+      "0x00100000",
+      "0x00000101",
+      65536,
+      0
+     ],
+     "304": [
+      "0x00200000",
+      "0x00000102",
+      65536,
+      0
+     ],
+     "320": [
+      "0x00300000",
+      "0x00000103",
+      65536,
+      0
+     ]
+    }
+   },
+   {
+    "set": 0,
+    "binding": 1,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 2,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 3,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 4,
+    "size": 65536,
+    "fill": "random"
+   }
+  ],
+  "timing": {
+   "repeats": 200,
+   "samples": 10
+  }
+ },
+ {
+  "name": "global memory u32 x8 buffers",
+  "baseline": "${BEFORE}/global-u32-8.spv",
+  "candidate": "${AFTER}/global-u32-8.spv",
+  "dispatch": [
+   256,
+   1,
+   1
+  ],
+  "subgroup": [
+   32,
+   64
+  ],
+  "cases": 16,
+  "buffers": [
+   {
+    "set": 0,
+    "binding": 0,
+    "size": 65536,
+    "words": {
+     "272": [
+      "0x00000000",
+      "0x00000100",
+      65536,
+      0
+     ],
+     "288": [
+      "0x00100000",
+      "0x00000101",
+      65536,
+      0
+     ],
+     "304": [
+      "0x00200000",
+      "0x00000102",
+      65536,
+      0
+     ],
+     "320": [
+      "0x00300000",
+      "0x00000103",
+      65536,
+      0
+     ],
+     "336": [
+      "0x00400000",
+      "0x00000104",
+      65536,
+      0
+     ],
+     "352": [
+      "0x00500000",
+      "0x00000105",
+      65536,
+      0
+     ],
+     "368": [
+      "0x00600000",
+      "0x00000106",
+      65536,
+      0
+     ],
+     "384": [
+      "0x00700000",
+      "0x00000107",
+      65536,
+      0
+     ]
+    }
+   },
+   {
+    "set": 0,
+    "binding": 1,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 2,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 3,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 4,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 5,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 6,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 7,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 8,
+    "size": 65536,
+    "fill": "random"
+   }
+  ],
+  "timing": {
+   "repeats": 200,
+   "samples": 10
+  }
+ },
+ {
+  "name": "global memory u32x4 x4 buffers",
+  "baseline": "${BEFORE}/global-u32x4-4.spv",
+  "candidate": "${AFTER}/global-u32x4-4.spv",
+  "dispatch": [
+   128,
+   1,
+   1
+  ],
+  "subgroup": [
+   32,
+   64
+  ],
+  "cases": 16,
+  "buffers": [
+   {
+    "set": 0,
+    "binding": 0,
+    "size": 65536,
+    "words": {
+     "272": [
+      "0x00000000",
+      "0x00000100",
+      65536,
+      0
+     ],
+     "288": [
+      "0x00100000",
+      "0x00000101",
+      65536,
+      0
+     ],
+     "304": [
+      "0x00200000",
+      "0x00000102",
+      65536,
+      0
+     ],
+     "320": [
+      "0x00300000",
+      "0x00000103",
+      65536,
+      0
+     ]
+    }
+   },
+   {
+    "set": 0,
+    "binding": 1,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 2,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 3,
+    "size": 65536,
+    "fill": "random"
+   },
+   {
+    "set": 0,
+    "binding": 4,
+    "size": 65536,
+    "fill": "random"
+   }
+  ],
+  "timing": {
+   "repeats": 200,
+   "samples": 10
+  }
+ }
+]

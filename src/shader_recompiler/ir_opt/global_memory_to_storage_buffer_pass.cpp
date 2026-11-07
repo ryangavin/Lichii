@@ -1470,25 +1470,85 @@ void CollectStorageBuffers(IR::Block& block, IR::Inst& inst, StorageInfo& info, 
     });
 }
 
-/// Returns the offset in indices (not bytes) for an equivalent storage instruction
-IR::U32 StorageOffset(IR::Block& block, IR::Inst& inst, StorageBufferAddr buffer, u32 alignment) {
-    IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
-    IR::U32 offset;
-    if (const std::optional<LowAddrInfo> low_addr{TrackLowAddress(&inst)}) {
-        offset = low_addr->value;
-        if (low_addr->imm_offset != 0) {
-            offset = ir.IAdd(offset, ir.Imm32(low_addr->imm_offset));
-        }
-    } else {
-        offset = ir.UConvert(32, IR::U64{inst.Arg(0)});
-    }
-    // Subtract the least significant 32 bits from the guest offset. The result is the storage
-    // buffer offset in bytes.
-    IR::U32 low_cbuf{ir.GetCbuf(ir.Imm32(buffer.index), ir.Imm32(buffer.offset))};
+struct HoistedBufferBase {
+    IR::U32 aligned_base;
+    IR::U32 align_rem;
+};
 
-    // Align the offset base to match the host alignment requirements
-    low_cbuf = ir.BitwiseAnd(low_cbuf, ir.Imm32(~(alignment - 1U)));
-    return ir.ISub(offset, low_cbuf);
+std::optional<IR::U32> TryStripCbufBase(IR::IREmitter& ir, const IR::U32& value,
+                                        StorageBufferAddr buffer, u32 depth = 4) {
+    if (value.IsImmediate()) {
+        return std::nullopt;
+    }
+    const IR::Inst* const inst{value.InstRecursive()};
+    if (CbufWord(inst) == buffer) {
+        return ir.Imm32(0U);
+    }
+    if (inst->GetOpcode() == IR::Opcode::IAdd32 && depth > 0) {
+        if (const auto lhs = TryStripCbufBase(ir, IR::U32{inst->Arg(0)}, buffer, depth - 1)) {
+            if (lhs->IsImmediate() && lhs->U32() == 0U) {
+                return IR::U32{inst->Arg(1)};
+            }
+            return ir.IAdd(*lhs, IR::U32{inst->Arg(1)});
+        }
+        if (const auto rhs = TryStripCbufBase(ir, IR::U32{inst->Arg(1)}, buffer, depth - 1)) {
+            if (rhs->IsImmediate() && rhs->U32() == 0U) {
+                return IR::U32{inst->Arg(0)};
+            }
+            return ir.IAdd(IR::U32{inst->Arg(0)}, *rhs);
+        }
+    }
+    return std::nullopt;
+}
+
+IR::U32 AddImmOffset(IR::IREmitter& ir, const IR::U32& offset, s32 imm_offset) {
+    if (imm_offset == 0) {
+        return offset;
+    }
+    const u32 imm{static_cast<u32>(imm_offset)};
+    if (offset.IsImmediate()) {
+        return ir.Imm32(offset.U32() + imm);
+    }
+    const IR::Inst* const inst{offset.InstRecursive()};
+    if (inst->GetOpcode() == IR::Opcode::IAdd32) {
+        if (inst->Arg(1).IsImmediate()) {
+            const u32 combined{inst->Arg(1).U32() + imm};
+            if (combined == 0U) {
+                return IR::U32{inst->Arg(0)};
+            }
+            return ir.IAdd(IR::U32{inst->Arg(0)}, ir.Imm32(combined));
+        }
+        if (inst->Arg(0).IsImmediate()) {
+            const u32 combined{inst->Arg(0).U32() + imm};
+            if (combined == 0U) {
+                return IR::U32{inst->Arg(1)};
+            }
+            return ir.IAdd(IR::U32{inst->Arg(1)}, ir.Imm32(combined));
+        }
+    }
+    return ir.IAdd(offset, ir.Imm32(imm));
+}
+
+/// Returns the offset in indices (not bytes) for an equivalent storage instruction
+IR::U32 StorageOffset(IR::Block& block, IR::Inst& inst, StorageBufferAddr buffer, u32 alignment,
+                      const HoistedBufferBase& hoisted) {
+    IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
+    if (const std::optional<LowAddrInfo> low_addr{TrackLowAddress(&inst)}) {
+        if (const auto stripped = TryStripCbufBase(ir, low_addr->value, buffer)) {
+            const IR::U32 offset{AddImmOffset(ir, *stripped, low_addr->imm_offset)};
+            if (alignment <= 1U) {
+                return offset;
+            }
+            if (offset.IsImmediate() && offset.U32() == 0U) {
+                return hoisted.align_rem;
+            }
+            return ir.IAdd(offset, hoisted.align_rem);
+        }
+        const IR::U32 offset{AddImmOffset(ir, low_addr->value, low_addr->imm_offset)};
+        return ir.ISub(offset, hoisted.aligned_base);
+    }
+    const IR::U32 offset{ir.UConvert(32, IR::U64{inst.Arg(0)})};
+    return ir.ISub(offset, hoisted.aligned_base);
 }
 
 /// Replace a global memory load instruction with its storage buffer equivalent
@@ -1653,14 +1713,44 @@ void GlobalMemoryToStorageBufferPass(Environment& env, IR::Program& program,
             .indirect_offset = storage_buffer.indirect,
         });
     }
+    const u32 alignment{u32(host_info.min_ssbo_alignment)};
+    std::vector<HoistedBufferBase> hoisted_bases;
+    if (!info.to_replace.empty()) {
+        IR::Block& entry_block{program.blocks.empty() ? *program.post_order_blocks.back()
+                                                      : *program.blocks.front()};
+        auto insert_it{entry_block.begin()};
+        while (insert_it != entry_block.end() && insert_it->GetOpcode() == IR::Opcode::Phi) {
+            ++insert_it;
+        }
+        IR::IREmitter entry_ir{entry_block, insert_it};
+        hoisted_bases.reserve(info.set.size());
+        for (const StorageBufferAddr& storage_buffer : info.set) {
+            const IR::U32 low_cbuf{
+                entry_ir.GetCbuf(entry_ir.Imm32(storage_buffer.index),
+                                 entry_ir.Imm32(storage_buffer.offset))};
+            const IR::U32 aligned_base{
+                alignment <= 1U
+                    ? low_cbuf
+                    : entry_ir.BitwiseAnd(low_cbuf, entry_ir.Imm32(~(alignment - 1U)))};
+            const IR::U32 align_rem{
+                alignment <= 1U
+                    ? entry_ir.Imm32(0U)
+                    : entry_ir.BitwiseAnd(low_cbuf, entry_ir.Imm32(alignment - 1U))};
+            hoisted_bases.push_back(HoistedBufferBase{
+                .aligned_base = aligned_base,
+                .align_rem = align_rem,
+            });
+        }
+    }
     for (const StorageInst& storage_inst : info.to_replace) {
         const StorageBufferAddr storage_buffer{storage_inst.storage_buffer};
         const auto it{info.set.find(storage_inst.storage_buffer)};
-        const IR::U32 index{IR::Value{static_cast<u32>(info.set.index_of(it))}};
+        const size_t buffer_idx{info.set.index_of(it)};
+        const IR::U32 index{IR::Value{static_cast<u32>(buffer_idx)}};
         IR::Block* const block{storage_inst.block};
         IR::Inst* const inst{storage_inst.inst};
         const IR::U32 offset{
-            StorageOffset(*block, *inst, storage_buffer, u32(host_info.min_ssbo_alignment))};
+            StorageOffset(*block, *inst, storage_buffer, alignment, hoisted_bases[buffer_idx])};
         Replace(*block, *inst, index, offset);
     }
 }

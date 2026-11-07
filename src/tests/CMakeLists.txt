@@ -100,6 +100,7 @@ add_executable(tests
     video_core/nx2_video_render.cpp
     video_core/ampere_matrix.cpp
     video_core/spirv_software_matrix.cpp
+    video_core/spirv_global_memory.cpp
     video_core/spirv_fixture.h
     video_core/spirv_builtin_capabilities.cpp
     video_core/spirv_min_max_denorms.cpp
