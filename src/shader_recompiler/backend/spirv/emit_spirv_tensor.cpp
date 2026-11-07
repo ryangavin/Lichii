@@ -55,12 +55,15 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
         const Id matrix_b = ctx.OpFunctionParameter(ctx.U32[2]);
         const Id matrix_c = ctx.OpFunctionParameter(ctx.U32[2]);
         ctx.AddLabel();
-        const Id counter = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, u32ty),
+        Id counter{};
+        std::array<Id, 4> accumulators{};
+        if (variant == 1) {
+            counter = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, u32ty),
                                            spv::StorageClass::Function);
-        std::array<Id, 4> accumulators;
-        for (auto& acc : accumulators)
-            acc = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, f32ty),
-                                 spv::StorageClass::Function);
+            for (auto& acc : accumulators)
+                acc = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, f32ty),
+                                           spv::StorageClass::Function);
+        }
         std::array<Id, 8> inputs;
         for (u32 i = 0; i < 4; ++i)
             inputs[i] = ctx.OpCompositeExtract(u32ty, matrix_a, i);
@@ -68,48 +71,59 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
             inputs[4 + i] = ctx.OpCompositeExtract(u32ty, matrix_b, i);
             inputs[6 + i] = ctx.OpCompositeExtract(u32ty, matrix_c, i);
         }
+        std::array<Id, 4> acc_vals;
         for (u32 row = 0; row < 2; ++row) {
             const Id c = unpack(inputs[6 + row]);
-            for (u32 col = 0; col < 2; ++col)
-                ctx.OpStore(accumulators[row * 2 + col], ctx.OpCompositeExtract(f32ty, c, col));
+            for (u32 col = 0; col < 2; ++col) {
+                acc_vals[row * 2 + col] = ctx.OpCompositeExtract(f32ty, c, col);
+                if (variant == 1)
+                    ctx.OpStore(accumulators[row * 2 + col], acc_vals[row * 2 + col]);
+            }
         }
-        ctx.OpStore(counter, imm(0));
+        if (variant == 1)
+            ctx.OpStore(counter, imm(0));
         const Id lane = ctx.OpLoad(u32ty, ctx.subgroup_local_invocation_id);
         const Id warp_base = and_(lane, ~31U);
         const Id row_base = and_(lane, 28);
         const Id col_base = ctx.OpShiftLeftLogical(u32ty, and_(lane, 3), imm(3));
         const Id a_base = add(warp_base, row_base);
         const Id b_base = add(warp_base, col_base);
+        std::array<Id, 4> a_lanes;
+        for (u32 component = 0; component < 4; ++component)
+            a_lanes[component] = component == 0 ? a_base : add(a_base, imm(component));
+        std::array<Id, 8> b_lanes;
+        for (u32 idx = 0; idx < 8; ++idx)
+            b_lanes[idx] = idx == 0 ? b_base : add(b_base, imm(idx));
         // Unrolling a K=8 group lets its shuffles overlap, which latency-bound small dispatches
         // need; unrolling all of K=16 raises register pressure and slows large dispatches.
-        const auto emit_group = [&](auto pick) {
+        const auto emit_group = [&](auto pick, std::array<Id, 4>& cur_acc) {
+            const Id b = pick(inputs[4], inputs[5]);
+            const std::array<Id, 2> a_rows{pick(inputs[0], inputs[2]), pick(inputs[1], inputs[3])};
             for (u32 component = 0; component < 4; ++component) {
-                const Id b = pick(inputs[4], inputs[5]);
                 std::array<Id, 2> bs;
                 for (u32 col = 0; col < 2; ++col)
                     bs[col] = unpack(ctx.OpGroupNonUniformShuffle(
-                        u32ty, imm(3), b, add(b_base, imm(component + col * 4))));
+                        u32ty, imm(3), b, b_lanes[component + col * 4]));
                 for (u32 row = 0; row < 2; ++row) {
                     const Id as = unpack(ctx.OpGroupNonUniformShuffle(
-                        u32ty, imm(3), pick(inputs[row], inputs[row + 2]),
-                        add(a_base, imm(component))));
+                        u32ty, imm(3), a_rows[row], a_lanes[component]));
                     for (u32 col = 0; col < 2; ++col) {
-                        Id value = ctx.OpLoad(f32ty, accumulators[row * 2 + col]);
+                        Id value = cur_acc[row * 2 + col];
                         for (u32 half = 0; half < 2; ++half) {
                             value = ctx.OpFma(f32ty, ctx.OpCompositeExtract(f32ty, as, half),
                                               ctx.OpCompositeExtract(f32ty, bs[col], half), value);
                             ctx.Decorate(value, spv::Decoration::NoContraction);
                         }
-                        ctx.OpStore(accumulators[row * 2 + col], value);
+                        cur_acc[row * 2 + col] = value;
                     }
                 }
             }
             // HMMA.F16 rounds after each K=8 group, including the midpoint of K=16.
-            for (const Id accumulator : accumulators)
-                ctx.OpStore(accumulator, round_half(ctx.OpLoad(f32ty, accumulator)));
+            for (Id& val : cur_acc)
+                val = round_half(val);
         };
         if (variant == 0) {
-            emit_group([](Id low, Id) { return low; });
+            emit_group([](Id low, Id) { return low; }, acc_vals);
         } else {
             const Id header = ctx.OpLabel(), body = ctx.OpLabel(), next = ctx.OpLabel(),
                      end = ctx.OpLabel();
@@ -121,17 +135,25 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
             ctx.OpBranchConditional(more, body, end);
             ctx.AddLabel(body);
             const Id upper = ctx.OpIEqual(ctx.U1, group, imm(1));
-            emit_group([&](Id low, Id high) { return ctx.OpSelect(u32ty, upper, high, low); });
+            std::array<Id, 4> loop_acc;
+            for (u32 i = 0; i < 4; ++i)
+                loop_acc[i] = ctx.OpLoad(f32ty, accumulators[i]);
+            emit_group([&](Id low, Id high) { return ctx.OpSelect(u32ty, upper, high, low); },
+                       loop_acc);
+            for (u32 i = 0; i < 4; ++i)
+                ctx.OpStore(accumulators[i], loop_acc[i]);
             ctx.OpBranch(next);
             ctx.AddLabel(next);
             ctx.OpStore(counter, add(group, imm(1)));
             ctx.OpBranch(header);
             ctx.AddLabel(end);
+            for (u32 i = 0; i < 4; ++i)
+                acc_vals[i] = ctx.OpLoad(f32ty, accumulators[i]);
         }
         std::array<Id, 2> packed;
         for (u32 row = 0; row < 2; ++row)
             packed[row] = ctx.OpPackHalf2x16(u32ty, ctx.OpCompositeConstruct(ctx.F32[2],
-                ctx.OpLoad(f32ty, accumulators[row * 2]), ctx.OpLoad(f32ty, accumulators[row * 2 + 1])));
+                acc_vals[row * 2], acc_vals[row * 2 + 1]));
         ctx.OpReturnValue(ctx.OpCompositeConstruct(ctx.U32[2], packed[0], packed[1]));
         ctx.OpFunctionEnd();
     }
