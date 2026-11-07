@@ -33,11 +33,11 @@ Add ids here when a report identifies a new game.
 
 ## Before writing a fix
 
-Lichii is a fork of [Eglantine](https://github.com/Djihads80/Eglantine). Do not guess, and do not rewrite a fix upstream already has.
+This local fork tracks [Lichii](https://github.com/zortos293/Lichii) as its upstream through `origin`. Eglantine is part of its ancestry, not the upstream remote for this fork. Do not guess, and do not rewrite a fix upstream already has.
 
-1. `git remote add upstream https://github.com/Djihads80/Eglantine.git && git fetch upstream`.
-2. Check `upstream/nx2`, open and closed PRs, unmerged branches, and issues for the game and symptom (`gh pr list -R Djihads80/Eglantine --state all`, `gh issue list -R Djihads80/Eglantine --state all`, `gh pr diff <n>`). Read the diffs, not only the titles.
-3. If nx2 is behind `upstream/nx2`, merge upstream first. Port an existing upstream fix before writing a new one, and cite its PR or commit.
+1. `git fetch origin`.
+2. Check `origin/nx2`, open and closed PRs, unmerged branches, and issues for the game and symptom (`gh pr list -R zortos293/Lichii --state all`, `gh issue list -R zortos293/Lichii --state all`, `gh pr diff <n> -R zortos293/Lichii`). Read the diffs, not only the titles.
+3. If the working branch is behind `origin/nx2`, integrate upstream first while preserving local fork changes. Port an existing upstream fix before writing a new one, and cite its PR or commit.
 4. Write a new fix only when nothing upstream addresses the root cause the log shows.
 
 ## Live debug server
@@ -55,8 +55,17 @@ Methods: `status`, `frame_times` (`seconds`, `refresh_hz`), `screenshot`, `log_t
 - Try a live experiment (screenshot, `reject_shaders` A/B, `capture_frame`, `log_tail`) before asking the owner for a new build or shortcut.
 - Use full 16-hex-digit hashes; shorter ones are refused.
 - Restore every hash you reject before you finish.
-- Never start or stop the emulator. If nothing listens, ask the owner to launch the game.
+- Do not start or stop the owner's emulator without authorization. Authorization for automated test runs permits managing the test processes you launch, not unrelated sessions.
 - Keep sessions light while the owner plays: one request at a time, no capture loops, `sampled` only when you need pass inputs.
+
+## Test hygiene
+
+- Track the PID, executable, build and output directory of every process you start. Check for an existing emulator before launching another.
+- Clean up your test processes when a run finishes, fails, is abandoned, or you hand control back. Do not leave an emulator or GPU benchmark running unless the owner explicitly asks you to.
+- Prefer graceful shutdown. Before terminating a remaining process, verify its identity; never kill unrelated sessions. Verify that the process exited and its debug-server port is no longer listening.
+- Restore shader rejections, temporary settings and unsuccessful code experiments. Leave the rebuilt executable on the retained implementation, and clearly identify any pending experiment.
+- Preserve useful measurements and captures locally with build/settings labels. Keep game captures out of commits and public services; remove disposable artifacts you created when they are no longer needed.
+- Keep benchmark windows visible and exclude startup, shader compilation, capture and screensaver/occlusion intervals from steady-state measurements.
 
 ## RenderDoc and the live server
 
