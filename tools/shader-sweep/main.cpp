@@ -540,6 +540,7 @@ int main(int argc, char** argv) {
         bool lower_only{};
         bool packed_code{};
         bool capture_extent{};
+        bool radv_profile{};
         for (int i = 1; i < argc; ++i) {
             const std::string arg{argv[i]};
             if (arg == "--help") {
@@ -547,7 +548,7 @@ int main(int argc, char** argv) {
                              "vertex|tess-control|tess-eval|geometry|fragment|compute|task|mesh]\n"
                              "  [--format instructions|native-header] [--environment FILE "
                              "--cache-version 46|47|48|49|50|51|52|53]\n"
-                             "  [--pipeline-key FILE] [--capture-extent] "
+                             "  [--pipeline-key FILE] [--capture-extent] [--radv-profile] "
                              "(--output SPV | --lower-only WORDS | --packed-code WORDS)\n";
                 return 0;
             }
@@ -559,6 +560,10 @@ int main(int argc, char** argv) {
             }
             if (arg == "--capture-extent") {
                 capture_extent = true;
+                continue;
+            }
+            if (arg == "--radv-profile") {
+                radv_profile = true;
                 continue;
             }
             if (++i == argc)
@@ -742,6 +747,9 @@ int main(int argc, char** argv) {
         Shader::ObjectPool<Shader::IR::Inst> inst_pool;
         Shader::ObjectPool<Shader::IR::Block> block_pool;
         Shader::HostTranslateInfo host{};
+        if (radv_profile) {
+            host.min_ssbo_alignment = 4;
+        }
         host.support_float64 = true;
         host.support_float16 = true;
         host.support_int64 = true;
@@ -768,6 +776,31 @@ int main(int argc, char** argv) {
         profile.max_user_clip_distances = 8;
         profile.max_subgroup_size = 32;
         profile.support_typeless_image_loads = true;
+        if (radv_profile) {
+            profile.supported_spirv = 0x00010600;
+            profile.support_descriptor_aliasing = true;
+            profile.support_uniform_and_storage_buffer_8bit = true;
+            profile.support_storage_buffer_8bit = true;
+            profile.support_uniform_and_storage_buffer_16bit = true;
+            profile.support_storage_buffer_16bit = true;
+            profile.support_float_controls = true;
+            profile.support_separate_denorm_behavior = true;
+            profile.support_separate_rounding_mode = true;
+            profile.support_fp16_denorm_preserve = true;
+            profile.support_fp32_denorm_preserve = true;
+            profile.support_fp16_denorm_flush = true;
+            profile.support_fp32_denorm_flush = true;
+            profile.support_fp16_signed_zero_nan_preserve = true;
+            profile.support_fp32_signed_zero_nan_preserve = true;
+            profile.support_fp64_signed_zero_nan_preserve = true;
+            profile.support_explicit_workgroup_layout = true;
+            profile.support_workgroup_layout_8bit_access = true;
+            profile.support_workgroup_layout_16bit_access = true;
+            profile.support_quad_shuffles = true;
+            profile.supported_subgroup_stages = ~0U;
+            profile.warp_size_potentially_larger_than_guest = program.stage != Stage::Compute;
+            profile.max_subgroup_size = program.stage == Stage::Compute ? 32 : 64;
+        }
         Shader::Backend::Bindings bindings{};
         const auto spirv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime, program, bindings);
         diagnostic["spirv_words"] = spirv.size();
