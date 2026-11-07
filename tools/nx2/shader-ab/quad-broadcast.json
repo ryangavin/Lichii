@@ -1,0 +1,22 @@
+[
+  {
+    "name": "quad broadcast playground",
+    "baseline": {"glsl": "quad_broadcast.comp", "defines": {"VARIANT": 0}},
+    "candidates": [{"name": "quad", "glsl": "quad_broadcast.comp", "defines": {"VARIANT": 1}}],
+    "dispatch": [4, 1, 1],
+    "subgroup": [32, 64],
+    "cases": 64,
+    "buffers": [{"set": 0, "binding": 0, "size": 2048, "fill": "random-half", "end": 1024}],
+    "timing": {"repeats": 500, "samples": 10}
+  },
+  {
+    "name": "quad broadcast detection",
+    "expect": "fail",
+    "baseline": {"glsl": "quad_broadcast.comp", "defines": {"VARIANT": 0}},
+    "candidate": {"name": "dropped-lane", "glsl": "quad_broadcast.comp", "defines": {"VARIANT": 2}},
+    "dispatch": [4, 1, 1],
+    "subgroup": 32,
+    "cases": 8,
+    "buffers": [{"set": 0, "binding": 0, "size": 2048, "fill": "random-half", "end": 1024}]
+  }
+]
