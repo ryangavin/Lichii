@@ -35,6 +35,7 @@ void TranslatorVisitor::P2R_imm(u64 insn) {
     const u32 num_items{pr_mode ? 7U : 4U};
     const u32 offset{static_cast<u32>(p2r.byte_selector) * 8};
     IR::U32 insert{ir.Imm32(0)};
+    bool has_insert = false;
     for (u32 index = 0; index < num_items; ++index) {
         if (((mask >> index) & 1) == 0) {
             continue;
@@ -56,10 +57,15 @@ void TranslatorVisitor::P2R_imm(u64 insn) {
             throw LogicError("Unreachable P2R index");
         }()};
         const IR::U32 bit{ir.Select(cond, ir.Imm32(1U << (index + offset)), ir.Imm32(0))};
-        insert = ir.BitwiseOr(insert, bit);
+        insert = has_insert ? ir.BitwiseOr(insert, bit) : bit;
+        has_insert = true;
+    }
+    if (p2r.src == IR::Reg::RZ) {
+        X(p2r.dest_reg, insert);
+        return;
     }
     const IR::U32 masked_out{ir.BitwiseAnd(X(p2r.src), ir.Imm32(~(mask << offset)))};
-    X(p2r.dest_reg, ir.BitwiseOr(masked_out, insert));
+    X(p2r.dest_reg, has_insert ? ir.BitwiseOr(masked_out, insert) : masked_out);
 }
 
 } // namespace Shader::Maxwell

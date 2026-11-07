@@ -40,11 +40,22 @@ void R2P(TranslatorVisitor& v, u64 insn, const IR::U32& mask) {
     const u32 num_items{pr_mode ? 7U : 4U};
     const u32 offset_base{static_cast<u32>(r2p.byte_selector) * 8};
     for (u32 index = 0; index < num_items; ++index) {
+        if (mask.IsImmediate() && ((mask.U32() >> index) & 1U) == 0U) {
+            continue;
+        }
         const IR::U32 offset{v.ir.Imm32(offset_base + index)};
-        const IR::U1 src_zero{v.ir.GetZeroFromOp(v.ir.BitFieldExtract(src, offset, count, false))};
-        const IR::U1 src_bit{v.ir.LogicalNot(src_zero)};
+        const IR::U32 src_bfe{v.ir.BitFieldExtract(src, offset, count, false)};
+        const IR::U1 src_bit{v.ir.INotEqual(src_bfe, v.ir.Imm32(0))};
+        if (mask.IsImmediate()) {
+            if (pr_mode) {
+                v.ir.SetPred(IR::Pred{index}, src_bit);
+            } else {
+                SetFlag(v.ir, v.ir.Imm1(false), src_bit, index);
+            }
+            continue;
+        }
         const IR::U32 mask_bfe{v.ir.BitFieldExtract(mask, v.ir.Imm32(index), count, false)};
-        const IR::U1 inv_mask_bit{v.ir.GetZeroFromOp(mask_bfe)};
+        const IR::U1 inv_mask_bit{v.ir.IEqual(mask_bfe, v.ir.Imm32(0))};
         if (pr_mode) {
             const IR::Pred pred{index};
             v.ir.SetPred(pred, IR::U1{v.ir.Select(inv_mask_bit, v.ir.GetPred(pred), src_bit)});
