@@ -373,8 +373,23 @@ std::vector<u8> RendererVulkan::GetAppletCaptureBuffer() {
 
     std::vector<u8> out(VideoCore::Capture::TiledSize);
 
-    if (!applet_frame.image) {
+    if (applet_capture_layers.empty() && !applet_frame.image) {
         return out;
+    }
+
+    if (!applet_capture_layers.empty()) {
+        if (!applet_frame.image) {
+            applet_frame.image =
+                CreateWrappedImage(memory_allocator, CaptureImageSize, CaptureFormat);
+            applet_frame.image_view =
+                CreateWrappedImageView(device, applet_frame.image, CaptureFormat);
+            applet_frame.framebuffer = blit_applet.CreateFramebuffer(
+                device, VideoCore::Capture::Layout, *applet_frame.image_view, CaptureFormat);
+        }
+
+        scheduler.RequestOutsideRenderPassOperationContext();
+        blit_applet.DrawToFrame(device, rasterizer, &applet_frame, applet_capture_layers,
+                                VideoCore::Capture::Layout, 1, CaptureFormat);
     }
 
     const auto dst_buffer =
@@ -398,22 +413,8 @@ std::vector<u8> RendererVulkan::GetAppletCaptureBuffer() {
 
 void RendererVulkan::RenderAppletCaptureLayer(
     std::span<const Tegra::FramebufferConfig> framebuffers) {
-    const auto capture_layers = Tegra::FilterLayerStack(
-        framebuffers, Service::Nvnflinger::LayerStackId::LastFrame, applet_capture_layers);
-
-    if (capture_layers.empty())
-        return;
-
-    if (!applet_frame.image) {
-        applet_frame.image = CreateWrappedImage(memory_allocator, CaptureImageSize, CaptureFormat);
-        applet_frame.image_view = CreateWrappedImageView(device, applet_frame.image, CaptureFormat);
-        applet_frame.framebuffer = blit_applet.CreateFramebuffer(device,
-            VideoCore::Capture::Layout, *applet_frame.image_view, CaptureFormat);
-    }
-
-    scheduler.RequestOutsideRenderPassOperationContext();
-    blit_applet.DrawToFrame(device, rasterizer, &applet_frame, capture_layers, VideoCore::Capture::Layout, 1,
-                            CaptureFormat);
+    void(Tegra::FilterLayerStack(framebuffers, Service::Nvnflinger::LayerStackId::LastFrame,
+                                 applet_capture_layers));
 }
 
 } // namespace Vulkan
