@@ -91,6 +91,18 @@ TOOLS = [
         },
     },
     {
+        "name": "profile_snapshot",
+        "description": "Recent GPU profile, DKB renderer, DKB gpu_frame, and DKB gpu_work lines "
+                       "kept in memory since the game booted.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "after": {"type": "integer", "minimum": 0},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 1000},
+            },
+        },
+    },
+    {
         "name": "capture_frame",
         "description": "EDEN_NX2_FRAME_DUMP for the next frame, now: every pass colour target, "
                        "dispatch storage image and the present source as PNG and .raw.zst, plus "
