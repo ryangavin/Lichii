@@ -1,0 +1,20 @@
+[
+  {
+    "name": "software HMMA K8",
+    "baseline": "${BEFORE}/software-k8-inputs.spv",
+    "candidate": "${AFTER}/software-k8-inputs.spv",
+    "subgroup": [32, 64],
+    "cases": 256,
+    "buffers": [{"set": 0, "binding": 0, "size": 2560, "fill": "random-half", "end": 512}],
+    "timing": {"repeats": 1000, "samples": 10}
+  },
+  {
+    "name": "software HMMA K16",
+    "baseline": "${BEFORE}/software-k16-inputs.spv",
+    "candidate": "${AFTER}/software-k16-inputs.spv",
+    "subgroup": [32, 64],
+    "cases": 256,
+    "buffers": [{"set": 0, "binding": 0, "size": 2560, "fill": "random-half", "end": 512}],
+    "timing": {"repeats": 1000, "samples": 10}
+  }
+]

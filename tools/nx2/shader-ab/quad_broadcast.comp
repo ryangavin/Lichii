@@ -1,0 +1,34 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_KHR_shader_subgroup_quad : require
+// A/B playground for one shader source: VARIANT 0 reads each quad's lane `c` with a
+// subgroup shuffle, VARIANT 1 with a quad broadcast, and VARIANT 2 drops the last lane's
+// product so a run against it must report a mismatch.
+#ifndef VARIANT
+#define VARIANT 0
+#endif
+
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) buffer Data {
+    uint words[]; // [0, 256): outputs; [256, 512): packed half inputs
+};
+
+void main() {
+    const uint lane = gl_SubgroupInvocationID;
+    const uint index = gl_GlobalInvocationID.x;
+    const uint input_word = words[256u + index];
+    float acc = 0.0;
+    for (uint c = 0u; c < 4u; ++c) {
+#if VARIANT == 1
+        const uint a = subgroupQuadBroadcast(input_word, c);
+#elif VARIANT == 2
+        const uint a = subgroupShuffle(input_word, (lane & ~3u) + min(c, 2u));
+#else
+        const uint a = subgroupShuffle(input_word, (lane & ~3u) + c);
+#endif
+        const vec2 h = unpackHalf2x16(a);
+        acc = fma(h.x, h.y, acc);
+    }
+    words[index] = packHalf2x16(vec2(acc, float(lane)));
+}

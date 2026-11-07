@@ -16,6 +16,7 @@
 #include "shader_recompiler/frontend/ampere/lower_to_maxwell.h"
 #include "shader_recompiler/frontend/ir/ir_emitter.h"
 #include "shader_recompiler/frontend/maxwell/decode.h"
+#include "spirv_fixture.h"
 
 namespace {
 using namespace Shader;
@@ -105,15 +106,7 @@ struct TensorProgram {
 
     std::vector<u32> Emit(std::string_view name = {}) {
         auto code = Backend::SPIRV::EmitSPIRV(profile, program);
-        if (const char* directory = std::getenv("EDEN_TENSOR_TEST_OUTPUT");
-            directory && !name.empty()) {
-            std::filesystem::create_directories(directory);
-            std::ofstream file{std::filesystem::path{directory} / (std::string{name} + ".spv"),
-                               std::ios::binary};
-            file.write(reinterpret_cast<const char*>(code.data()),
-                       static_cast<std::streamsize>(code.size() * sizeof(u32)));
-            REQUIRE(file.good());
-        }
+        TestFixtures::WriteSpirv(name, code);
         return code;
     }
 };
@@ -256,7 +249,7 @@ std::pair<u32, u32> OperandSource(const Module& module, u32 id,
 }
 
 TEST_CASE("Software HMMA shares one helper per depth without tensor extensions",
-          "[video_core][tensor][ampere]") {
+          "[video_core][tensor][ampere][fixture]") {
     for (const u32 depth : {8U, 16U}) {
         TensorProgram single{1, depth};
         const auto first = single.Emit(depth == 8 ? "software-k8" : "software-k16");
@@ -445,7 +438,7 @@ TEST_CASE("Software HMMA stores each group's rounded accumulators and reads the 
 }
 
 TEST_CASE("Software matrix helpers also emit for 64-lane host subgroups",
-          "[video_core][tensor][ampere]") {
+          "[video_core][tensor][ampere][fixture]") {
     for (const u32 depth : {8U, 16U}) {
         TensorProgram fixture{1, depth};
         fixture.profile.max_subgroup_size = 64;
@@ -692,7 +685,7 @@ TEST_CASE("16x16x16 cooperative HMMA falls back to the software helper",
 
 
 TEST_CASE("Software matrix differential fixtures accept runtime fragments",
-          "[video_core][tensor][ampere]") {
+          "[video_core][tensor][ampere][fixture]") {
     for (const u32 depth : {8U, 16U}) {
         TensorProgram fixture{1, depth, true};
         fixture.profile.max_subgroup_size = 64;

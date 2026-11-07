@@ -1,5 +1,9 @@
 # Software matrix GPU comparisons
 
+`tools/nx2/shader_ab.py` (see `shader-ab.md`) runs the same fixtures through the generic
+compute A/B runner with reflected bindings, GLSL variants and tabulated timing; `tensor_diff.cpp`
+remains for its targeted HMMA rounding, subnormal and overflow input patterns.
+
 `tensor_diff.cpp` runs two emitted software-HMMA shaders on the same Vulkan device
 and compares their packed outputs bitwise. Use it before benchmarking changes to
 the shader emitter. It requires Vulkan 1.3, compute subgroup shuffles, and a 32- or
