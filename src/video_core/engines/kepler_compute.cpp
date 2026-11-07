@@ -37,6 +37,7 @@
 #include "video_core/macro_turing_jit.h"
 #endif
 #include "video_core/rasterizer_interface.h"
+#include "video_core/texture_cache/image_info.h"
 #include "video_core/textures/decoders.h"
 
 namespace Tegra::Engines {
@@ -764,6 +765,14 @@ constexpr u32 DLSS_NETWORK_BAD_CHECKS = 10;
 /// at most 0.2% on Fortune's Weave's title and Kunlun Base; frozen ones: 6-10%), or when any output
 /// sample is NaN or infinite.
 constexpr u32 DLSS_CHECK_MISMATCH_PERCENT = 3;
+
+std::string DescribeTic(const Tegra::Texture::TICEntry& tic) {
+    return fmt::format("{:#x} {}x{}x{} format={} type={} r_type={} layer={} mips={} block_linear={}",
+                       tic.Address(), tic.Width(), tic.Height(), tic.Depth(),
+                       static_cast<u32>(tic.format.Value()), static_cast<u32>(tic.texture_type.Value()),
+                       static_cast<u32>(tic.r_type.Value()), tic.BaseLayer(), tic.max_mip_level.Value(),
+                       tic.IsBlockLinear());
+}
 } // Anonymous namespace
 
 bool KeplerCompute::ProcessGameDlss(u64 program_id, u64 native_key) {
@@ -1245,17 +1254,30 @@ void KeplerCompute::CaptureFireEmblemJitter() {
     dlss_depth.reset();
     const auto& cbuf = launch_description.const_buffer_config[0];
     const GPUVAddr address = (GPUVAddr{cbuf.address_high} << 32) | cbuf.address_low;
+    // Bounded: a prepass whose colour can't be captured leaves the replacement silently off.
+    static u32 traced{};
     if (!(launch_description.const_buffer_enable_mask & 1) || cbuf.size.Value() < 0x27c ||
         !memory_manager.IsFullyMappedRange(address, 0x27c)) {
+        if (traced++ < 8) {
+            LOG_INFO(HW_GPU, "Game DLSS prepass: constant buffer 0 unusable: mask={:#x} size={:#x}",
+                     launch_description.const_buffer_enable_mask.Value(), cbuf.size.Value());
+        }
         return;
     }
     const u32 index = memory_manager.Read<u32>(address + PrepassColorOffset) & 0xfffff;
     if (index > regs.tic.limit || !memory_manager.IsFullyMappedRange(
             regs.tic.Address() + u64{index} * sizeof(Texture::TICEntry), sizeof(Texture::TICEntry))) {
+        if (traced++ < 8) {
+            LOG_INFO(HW_GPU, "Game DLSS prepass: colour handle {:#x} out of range", index);
+        }
         return;
     }
-    const auto color = GetTICEntry(index);
+    // Native descriptors are read as the texture cache reads them (no legacy layer-base prefix).
+    const auto color = VideoCommon::TextureViewHeader(GetTICEntry(index), native_mode);
     if (!ValidInput(color, dlss_chain.spatial_only)) {
+        if (traced++ < 8) {
+            LOG_INFO(HW_GPU, "Game DLSS prepass: colour {} is not a usable input", DescribeTic(color));
+        }
         return;
     }
     fe_upscale_jitter.Capture(color.Address(), color.Width(), color.Height(),
@@ -1340,8 +1362,14 @@ bool KeplerCompute::TryFireEmblemUpscale(bool allow_history) {
     }
     const auto& cbuf = launch_description.const_buffer_config[0];
     const GPUVAddr address = (GPUVAddr{cbuf.address_high} << 32) | cbuf.address_low;
+    // Bounded: these exits otherwise retain the native dispatch without a trace.
+    static u32 traced{};
     if (!(launch_description.const_buffer_enable_mask & 1) || cbuf.size.Value() < 0x34c ||
         !memory_manager.IsFullyMappedRange(address, 0x34c)) {
+        if (traced++ < 8) {
+            LOG_INFO(HW_GPU, "{} output: constant buffer 0 unusable: mask={:#x} size={:#x}", game,
+                     launch_description.const_buffer_enable_mask.Value(), cbuf.size.Value());
+        }
         return false;
     }
     const auto image = [&](u32 offset) -> std::optional<Texture::TICEntry> {
@@ -1350,13 +1378,21 @@ bool KeplerCompute::TryFireEmblemUpscale(bool allow_history) {
                 regs.tic.Address() + u64{index} * sizeof(Texture::TICEntry), sizeof(Texture::TICEntry))) {
             return std::nullopt;
         }
-        return GetTICEntry(index);
+        // Read as the texture cache reads native descriptors (no legacy layer-base prefix).
+        return VideoCommon::TextureViewHeader(GetTICEntry(index), native_mode);
     };
     const auto input = image(OutputColorInputOffset);
     const auto output = image(OutputColorOffset);
-    if (!input || !output || !ValidPair(*input, *output, dlss_chain.spatial_only) ||
+    const bool valid_pair = input && output && ValidPair(*input, *output, dlss_chain.spatial_only);
+    if (!valid_pair ||
         jitter->color != input->Address() || (use_history && dlss_motion_color != input->Address()) ||
         jitter->width != input->Width() || jitter->height != input->Height()) {
+        if (traced++ < 8) {
+            LOG_INFO(HW_GPU, "{} output: pair rejected: valid={} input {} output {} jitter colour {:#x} {}x{}",
+                     game, valid_pair, input ? DescribeTic(*input) : "none",
+                     output ? DescribeTic(*output) : "none", jitter->color, jitter->width,
+                     jitter->height);
+        }
         return false;
     }
     const auto surface = [](const Texture::TICEntry& tic, Tegra::RenderTargetFormat format) {
