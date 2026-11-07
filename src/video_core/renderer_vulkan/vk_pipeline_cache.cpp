@@ -1625,7 +1625,13 @@ ComputePipelineCacheEntry PipelineCache::CreateComputePipeline(
                     max_shared_memory / 1024);
         program.shared_memory_size = max_shared_memory;
     }
-    const std::vector<u32> code{EmitSPIRV(profile, program)};
+    Shader::Profile compute_profile{profile};
+    if (device.IsExtSubgroupSizeControlSupported() &&
+        device.IsGuestWarpSizeSupported(VK_SHADER_STAGE_COMPUTE_BIT)) {
+        compute_profile.warp_size_potentially_larger_than_guest = false;
+        compute_profile.max_subgroup_size = GuestWarpSize;
+    }
+    const std::vector<u32> code{EmitSPIRV(compute_profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
 
